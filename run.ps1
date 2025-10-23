@@ -61,6 +61,10 @@ if ([string]::IsNullOrWhiteSpace($env:VITE_API_BASE)) {
 Write-RunLog ("환경 변수 설정: AUTO_SEED_SESSIONS={0}, CORS_ORIGINS={1}, VITE_API_BASE={2}" -f `
     $env:AUTO_SEED_SESSIONS, $env:CORS_ORIGINS, $env:VITE_API_BASE)
 
+Write-RunLog "필요 시 아래 명령으로 CORS_ORIGINS를 덮어쓴 뒤 다시 실행하세요."
+Write-RunLog '$env:CORS_ORIGINS = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://192.168.45.9:5173,http://192.168.45.9:5174,http://172.17.16.1:5173,http://172.17.16.1:5174,http://172.27.64.1:5173,http://172.27.64.1:5174"'
+Write-RunLog '.\run.ps1'
+
 $processes = New-Object System.Collections.Generic.List[System.Diagnostics.Process]
 
 function Start-ServiceProcess {
