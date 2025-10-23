@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import datetime as dt
 from datetime import date, datetime, time
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -35,6 +36,24 @@ class ReservationCreate(BaseModel):
         if not email:
             return None
         return email.lower()
+
+    @field_validator("date", mode="before")
+    @classmethod
+    def parse_date(cls, value: Any) -> date:
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            return datetime.strptime(value, "%Y-%m-%d").date()
+        raise ValueError("유효한 날짜 형식이 아닙니다.")
+
+    @field_validator("start_time", "end_time", mode="before")
+    @classmethod
+    def parse_time(cls, value: Any) -> time:
+        if isinstance(value, time):
+            return value
+        if isinstance(value, str):
+            return datetime.strptime(value, "%H:%M").time()
+        raise ValueError("유효한 시간 형식이 아닙니다.")
 
 
 class ReservationPublic(BaseModel):
@@ -75,11 +94,33 @@ class ReservationDeleteResponse(BaseModel):
 class PlateVerificationRequest(BaseModel):
     plate: str
     session_id: Optional[int] = Field(None, alias="sessionId")
-    date: Optional[date] = None
+    date: Optional[dt.date] = None
     start_time: Optional[time] = Field(None, alias="startTime")
     end_time: Optional[time] = Field(None, alias="endTime")
 
     model_config = ConfigDict(populate_by_name=True, str_strip_whitespace=True)
+
+    @field_validator("date", mode="before")
+    @classmethod
+    def parse_date(cls, value: Any) -> Optional[date]:
+        if value in (None, ""):
+            return None
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            return datetime.strptime(value, "%Y-%m-%d").date()
+        raise ValueError("유효한 날짜 형식이 아닙니다.")
+
+    @field_validator("start_time", "end_time", mode="before")
+    @classmethod
+    def parse_time(cls, value: Any) -> Optional[time]:
+        if value in (None, ""):
+            return None
+        if isinstance(value, time):
+            return value
+        if isinstance(value, str):
+            return datetime.strptime(value, "%H:%M").time()
+        raise ValueError("유효한 시간 형식이 아닙니다.")
 
 
 class PlateVerificationResponse(BaseModel):
