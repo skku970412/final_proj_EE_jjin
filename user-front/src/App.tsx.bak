@@ -1,0 +1,506 @@
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import {
+  Camera,
+  Car,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  History,
+  LogIn,
+  Power,
+  QrCode,
+  ShieldCheck,
+  User,
+  Trash2,
+} from "lucide-react";
+
+type ReservationStatus = "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
+type Reservation = {
+  id: string;
+  sessionId: number;
+  plate: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status: ReservationStatus;
+  contactEmail?: string | null;
+};
+
+type SessionReservations = {
+  sessionId: number;
+  name: string;
+  reservations: Reservation[];
+};
+
+type Step = 1 | 2 | 3 | 4 | 5;
+
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+const START_HOUR = 9;
+const END_HOUR = 22;
+
+const KR_PLATE_REGEX =
+  /^(?:[가-힣]{2}\d{2}[가-힣]\d{4}|\d{2,3}[가-힣]\d{4}|[가-힣]{2}\d{2}\s?\d{4})$/;
+
+function pad(n: number) {
+  return n.toString().padStart(2, "0");
+}
+
+function toMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function fromMinutes(mins: number): string {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${pad(h)}:${pad(m)}`;
+}
+
+function daySlots(): string[] {
+  const arr: string[] = [];
+  for (let h = START_HOUR; h <= END_HOUR - 1; h++) {
+    arr.push(`${pad(h)}:00`);
+    arr.push(`${pad(h)}:30`);
+  }
+  return arr;
+}
+
+function endTime(start: string, durationMin: number) {
+  return fromMinutes(toMinutes(start) + durationMin);
+}
+
+async function extractError(res: Response): Promise<string> {
+  try {
+    const data = await res.json();
+    if (typeof data?.detail === "string") return data.detail;
+    if (Array.isArray(data?.detail) && data.detail.length > 0) {
+      const first = data.detail[0];
+      if (typeof first?.msg === "string") return first.msg;
+    }
+    if (typeof data?.message === "string") return data.message;
+  } catch {
+    // ignore JSON parse errors
+  }
+  const text = await res.text();
+  return text || `요청이 실패했습니다. (status ${res.status})`;
+}
+
+const api = {
+  login: async (email: string, password: string) => {
+    const res = await fetch(`${API_BASE}/api/user/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) throw new Error(await extractError(res));
+    return (await res.json()) as { token: string; user: { email: string } };
+  },
+  listReservationsBySession: async (dateISO: string) => {
+    const res = await fetch(
+      `${API_BASE}/api/reservations/by-session?date=${encodeURIComponent(dateISO)}`
+    );
+    if (!res.ok) throw new Error(await extractError(res));
+    return (await res.json()) as { sessions: SessionReservations[] };
+  },
+  verifySlot: async (payload: {
+    plate: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    sessionId: number;
+  }) => {
+    const res = await fetch(`${API_BASE}/api/plates/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await extractError(res));
+    return (await res.json()) as {
+      valid: boolean;
+      conflict: boolean;
+      message: string;
+    };
+  },
+  lookupPlate: async (plate: string) => {
+    const res = await fetch(
+      `${API_BASE}/api/reservations/my?plate=${encodeURIComponent(plate)}`
+    );
+    if (!res.ok) throw new Error(await extractError(res));
+    return (await res.json()) as Reservation[];
+  },
+  createReservation: async (payload: {
+    sessionId: number;
+    plate: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    contactEmail: string;
+  }) => {
+    const res = await fetch(`${API_BASE}/api/reservations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await extractError(res));
+    return (await res.json()) as Reservation;
+  },
+  myReservations: async (email: string) => {
+    const res = await fetch(
+      `${API_BASE}/api/reservations/my?email=${encodeURIComponent(email)}`
+    );
+    if (!res.ok) throw new Error(await extractError(res));
+    return (await res.json()) as Reservation[];
+  },
+  deleteReservation: async (id: string, email: string) => {
+    const res = await fetch(
+      `${API_BASE}/api/reservations/${id}?email=${encodeURIComponent(email)}`,
+      { method: "DELETE" }
+    );
+    if (!res.ok) throw new Error(await extractError(res));
+  },
+};
+
+const slots = daySlots();
+
+export default function EVUserFrontV2() {
+  const [step, setStep] = useState<Step>(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [token, setToken] = useState<string | null>(null);
+
+  const [plate, setPlate] = useState("");
+  const [plateValid, setPlateValid] = useState<boolean | null>(null);
+  const [plateRegistered, setPlateRegistered] = useState<boolean | null>(null);
+  const [plateHistory, setPlateHistory] = useState<Reservation[]>([]);
+
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [date, setDate] = useState<string>(todayISO);
+  const [sessionId, setSessionId] = useState<number>(1);
+  const [startTime, setStartTime] = useState<string>("09:00");
+  const [durationMin, setDurationMin] = useState<number>(60);
+  const [occupiedSet, setOccupiedSet] = useState<Set<string>>(new Set());
+  const [stripData, setStripData] = useState<
+    { dateISO: string; label: string; color: string; freePct: number }[]
+  >([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+
+  const [reservationId, setReservationId] = useState<string | null>(null);
+  const [myList, setMyList] = useState<Reservation[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const [scanOpen, setScanOpen] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    if (!plate) {
+      setPlateValid(null);
+      return;
+    }
+    setPlateValid(KR_PLATE_REGEX.test(plate.replace(/\s/g, "")));
+  }, [plate]);
+
+  useEffect(() => {
+    if (!token) return;
+    const load = async () => {
+      try {
+        const list = await api.myReservations(email.toLowerCase());
+        setMyList(list);
+      } catch (e: any) {
+        setError(e?.message ?? "내 예약을 불러오지 못했습니다.");
+      }
+    };
+    load();
+  }, [token, email]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setAvailabilityLoading(true);
+      setError(null);
+      try {
+        const range: string[] = [];
+        const base = new Date(date);
+        for (let offset = -3; offset <= 10; offset += 1) {
+          const d = new Date(base);
+          d.setDate(base.getDate() + offset);
+          range.push(d.toISOString().slice(0, 10));
+        }
+        const responses = await Promise.all(
+          range.map(async (iso) => ({
+            iso,
+            sessions: await api.listReservationsBySession(iso),
+          }))
+        );
+        if (cancelled) return;
+
+        const nextStrip: { dateISO: string; label: string; color: string; freePct: number }[] =
+          [];
+        let currentSession: SessionReservations | undefined;
+        for (const { iso, sessions } of responses) {
+          const session = sessions.sessions.find((s) => s.sessionId === sessionId);
+          if (iso === date) currentSession = session;
+          const occupied = new Set<string>();
+          session?.reservations.forEach((r) => {
+            let cur = toMinutes(r.startTime);
+            const until = toMinutes(r.endTime);
+            while (cur < until) {
+              occupied.add(fromMinutes(cur));
+              cur += 30;
+            }
+          });
+          const free = Math.max(0, slots.length - occupied.size);
+          const freePct = Math.round((free / slots.length) * 100);
+          const color =
+            freePct > 66 ? "bg-emerald-500" : freePct > 33 ? "bg-amber-500" : "bg-rose-500";
+          const d = new Date(iso);
+          nextStrip.push({
+            dateISO: iso,
+            label: `${d.getMonth() + 1}/${d.getDate()}`,
+            color,
+            freePct,
+          });
+        }
+        setStripData(nextStrip);
+
+        const occupied = new Set<string>();
+        currentSession?.reservations.forEach((r) => {
+          let cur = toMinutes(r.startTime);
+          const until = toMinutes(r.endTime);
+          while (cur < until) {
+            occupied.add(fromMinutes(cur));
+            cur += 30;
+          }
+        });
+        setOccupiedSet(occupied);
+        if (!slots.includes(startTime)) {
+          setStartTime(slots[0]);
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          setError(e?.message ?? "가용성을 불러오지 못했습니다.");
+        }
+      } finally {
+        if (!cancelled) {
+          setAvailabilityLoading(false);
+        }
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [date, sessionId, startTime]);
+
+  const canNextFromLogin = !!email && !!password;
+  const canNextFromPlate = plateValid === true;
+  const estimatedPrice = useMemo(() => durationMin * 100, [durationMin]);
+
+  const handleLogin = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { token } = await api.login(email.trim(), password);
+      setToken(token);
+      setPlateHistory([]);
+      setPlateRegistered(null);
+      setStep(2);
+    } catch (e: any) {
+      setError(e?.message ?? "로그인 실패");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyPlate = async () => {
+    if (!token) return;
+    if (!plateValid) {
+      setError("번호판 형식을 확인하세요.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const history = await api.lookupPlate(plate.trim());
+      setPlateHistory(history);
+      setPlateRegistered(history.length > 0);
+      setStep(3);
+    } catch (e: any) {
+      setError(e?.message ?? "번호판 확인 실패");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshReservations = async () => {
+    if (!email) return;
+    const list = await api.myReservations(email.toLowerCase());
+    setMyList(list);
+  };
+
+  const handleReserve = async () => {
+    if (!token) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const verification = await api.verifySlot({
+        plate: plate.trim(),
+        date,
+        startTime,
+        endTime: endTime(startTime, durationMin),
+        sessionId,
+      });
+      if (verification.conflict) {
+        setPlateRegistered(true);
+        setError(verification.message);
+        return;
+      }
+      const reservation = await api.createReservation({
+        sessionId,
+        plate: plate.trim(),
+        date,
+        startTime,
+        endTime: endTime(startTime, durationMin),
+        contactEmail: email.trim().toLowerCase(),
+      });
+      setReservationId(reservation.id);
+      await refreshReservations();
+      setStep(4);
+    } catch (e: any) {
+      setError(e?.message ?? "예약 실패");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("이 예약을 삭제할까요?")) return;
+    setDeletingId(id);
+    setError(null);
+    try {
+      await api.deleteReservation(id, email.toLowerCase());
+      await refreshReservations();
+    } catch (e: any) {
+      setError(e?.message ?? "삭제에 실패했습니다.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!window.confirm("모든 예약을 삭제할까요?")) return;
+    setLoading(true);
+    setError(null);
+    try {
+      for (const r of myList) {
+        await api.deleteReservation(r.id, email.toLowerCase());
+      }
+      await refreshReservations();
+    } catch (e: any) {
+      setError(e?.message ?? "내역 삭제에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openScanner = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setScanOpen(true);
+    } catch {
+      setError("카메라 접근이 거부되었거나 지원되지 않습니다.");
+    }
+  };
+
+  const closeScanner = () => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setScanOpen(false);
+  };
+
+  const snapAndRecognize = async () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement("canvas");
+    const vw = videoRef.current.videoWidth;
+    const vh = videoRef.current.videoHeight;
+    canvas.width = vw;
+    canvas.height = vh;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(videoRef.current, 0, 0, vw, vh);
+    await new Promise((res) => setTimeout(res, 600));
+    const fake = ["12가3456", "123나4567", "68다1234", "서울12가3456"];
+    setPlate(fake[Math.floor(Math.random() * fake.length)]);
+    closeScanner();
+  };
+
+  const sortedMyList = useMemo(
+    () =>
+      [...myList].sort((a, b) =>
+        (a.date + a.startTime).localeCompare(b.date + b.startTime)
+      ),
+    [myList]
+  );
+
+  return (
+    <div className="min-h-screen w-full bg-gradient-to-b from-gray-50 to-white flex items-center justify-center p-4">
+      <div className="w-full max-w-4xl">
+        <Header loggedIn={!!token} onMy={() => (token ? setStep(5) : null)} />
+        <Stepper step={step} />
+
+        <motion.div layout className="mt-4">
+          {step === 1 && (
+            <Card>
+              <CardHeader
+                icon={<LogIn className="w-5 h-5" />}
+                title="로그인"
+                subtitle="이메일과 비밀번호로 로그인하세요."
+              />
+              <div className="grid gap-3 p-6">
+                <LabeledInput
+                  label="이메일"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={setEmail}
+                  type="email"
+                />
+                <LabeledInput
+                  label="비밀번호"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={setPassword}
+                  type="password"
+                />
+                {error && <ErrorBar msg={error} />}
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-500 flex items-center gap-1">
+                    <ShieldCheck className="w-4 h-4" /> 안전한 로그인
+                  </div>
+                  <Button disabled={!canNextFromLogin || loading} onClick={handleLogin}>
+                    {loading ? "로그인 중..." : "다음"}
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
