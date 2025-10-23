@@ -82,7 +82,7 @@ ensure_venv_and_backend_deps
 ensure_frontend_deps
 
 export AUTO_SEED_SESSIONS="${AUTO_SEED_SESSIONS:-1}"
-export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost:5173,http://localhost:5174}"
+export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost:5173,http://localhost:5174,http://localhost:5175}"
 export VITE_API_BASE="${VITE_API_BASE:-http://localhost:8000}"
 
 cleanup() {

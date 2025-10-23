@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # EV Wireless Charging – Demo (User + Admin)
 
 두 개의 프론트를 **분리 폴더**로 구성했습니다.
@@ -75,3 +76,7 @@ npm run build && npm run preview
 - 유저: `api.createReservation`, `api.listReservationsBySession`, `api.verifyPlate`, `api.deleteReservation`
 - 관리자: `api.listReservationsBySession`, `api.deleteReservation`
 엔드포인트/인증 헤더만 교체하면 UI는 그대로 동작합니다.
+=======
+# final_proj_EE_jjin
+final_proj_EE_jjin
+>>>>>>> fc13e79b778ddf2bf00ef0c3bb701b7d378092aa

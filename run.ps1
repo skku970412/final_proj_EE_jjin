@@ -52,7 +52,7 @@ if ([string]::IsNullOrWhiteSpace($env:AUTO_SEED_SESSIONS)) {
     $env:AUTO_SEED_SESSIONS = "1"
 }
 if ([string]::IsNullOrWhiteSpace($env:CORS_ORIGINS)) {
-    $env:CORS_ORIGINS = "http://localhost:5173,http://localhost:5174"
+    $env:CORS_ORIGINS = "http://localhost:5173,http://localhost:5174,http://localhost:5175"
 }
 if ([string]::IsNullOrWhiteSpace($env:VITE_API_BASE)) {
     $env:VITE_API_BASE = "http://localhost:8000"
