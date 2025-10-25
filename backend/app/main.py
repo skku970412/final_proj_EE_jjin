@@ -43,6 +43,10 @@ def create_app() -> FastAPI:
                 connection.execute(
                     text("ALTER TABLE reservations ADD COLUMN contact_email VARCHAR(255)")
                 )
+        with SessionLocal() as session:
+            crud.migrate_reservation_times_to_utc(session)
+            crud.ensure_reservation_slots(session)
+            session.commit()
         if settings.auto_seed_sessions:
             with SessionLocal() as session:
                 crud.ensure_base_sessions(

@@ -17,6 +17,11 @@ from ..schemas import (
     SessionReservations,
     SessionsResponse,
 )
+from ..time_utils import (
+    UTC,
+    combine_business_datetime,
+    to_business_local,
+)
 
 router = APIRouter(prefix="/api", tags=["reservations"])
 
@@ -26,15 +31,15 @@ SLOT_MINUTES = 30
 
 
 def to_reservation_public(reservation: Reservation) -> ReservationPublic:
-    start_dt = reservation.start_time
-    end_dt = reservation.end_time
+    start_local = to_business_local(reservation.start_time)
+    end_local = to_business_local(reservation.end_time)
     return ReservationPublic(
         id=reservation.id,
         sessionId=reservation.session_id,
         plate=reservation.plate,
-        date=start_dt.date(),
-        startTime=start_dt.time().replace(second=0, microsecond=0),
-        endTime=end_dt.time().replace(second=0, microsecond=0),
+        date=start_local.date(),
+        startTime=start_local.time().replace(second=0, microsecond=0, tzinfo=None),
+        endTime=end_local.time().replace(second=0, microsecond=0, tzinfo=None),
         status=reservation.derived_status,
         contactEmail=reservation.contact_email,
     )
@@ -93,28 +98,33 @@ def create_reservation(
 ) -> ReservationPublic:
     session_obj: ChargingSession | None = db.get(ChargingSession, payload.session_id)
     if session_obj is None:
-        raise HTTPException(status_code=404, detail="해당 세션을 찾을 수 없습니다.")
-    start_dt = datetime.combine(payload.date, payload.start_time)
-    end_dt = datetime.combine(payload.date, payload.end_time)
-    if end_dt <= start_dt:
-        raise HTTPException(status_code=400, detail="종료 시간이 시작 시간보다 빠릅니다.")
-    if start_dt.date() != end_dt.date():
-        raise HTTPException(status_code=400, detail="예약은 동일한 날짜 안에서만 가능합니다.")
+        raise HTTPException(status_code=404, detail='해당 세션을 찾을 수 없습니다.')
+
+    start_local = combine_business_datetime(payload.date, payload.start_time)
+    end_local = combine_business_datetime(payload.date, payload.end_time)
+    if end_local <= start_local:
+        raise HTTPException(status_code=400, detail='종료 시간이 시작 시간보다 빠릅니다.')
 
     def _is_valid_slot(dt: datetime) -> bool:
         return dt.minute in (0, 30) and dt.second == 0 and dt.microsecond == 0
 
-    if not _is_valid_slot(start_dt) or not _is_valid_slot(end_dt):
-        raise HTTPException(status_code=400, detail="예약은 30분 단위로만 가능합니다.")
+    if not _is_valid_slot(start_local) or not _is_valid_slot(end_local):
+        raise HTTPException(status_code=400, detail='예약은 30분 단위로만 가능합니다.')
 
-    if start_dt.time() < BUSINESS_OPEN or start_dt.time() >= BUSINESS_CLOSE:
-        raise HTTPException(status_code=400, detail="예약 시작 시간은 운영 시간(09:00~22:00) 내에서만 가능합니다.")
-    if end_dt.time() > BUSINESS_CLOSE:
-        raise HTTPException(status_code=400, detail="예약 종료 시간이 운영 종료(22:00) 이후입니다.")
+    business_open_dt = combine_business_datetime(payload.date, BUSINESS_OPEN)
+    business_close_dt = combine_business_datetime(payload.date, BUSINESS_CLOSE)
+    if not (business_open_dt <= start_local < business_close_dt):
+        raise HTTPException(status_code=400, detail='예약 시작 시간은 운영 시간(09:00~22:00) 안에서만 가능합니다.')
+    if end_local > business_close_dt:
+        raise HTTPException(status_code=400, detail='예약 종료 시간은 운영 종료(22:00) 이후입니다.')
 
-    duration_minutes = int((end_dt - start_dt).total_seconds() / 60)
+    duration_minutes = int((end_local - start_local).total_seconds() / 60)
     if duration_minutes % SLOT_MINUTES != 0:
-        raise HTTPException(status_code=400, detail="예약은 30분 단위 길이로만 가능합니다.")
+        raise HTTPException(status_code=400, detail='예약은 30분 배수 길이로만 가능합니다.')
+
+    start_dt = start_local.astimezone(UTC)
+    end_dt = end_local.astimezone(UTC)
+
     try:
         reservation = crud.create_reservation(
             db,
@@ -128,8 +138,6 @@ def create_reservation(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return to_reservation_public(reservation)
-
-
 @router.post(
     "/plates/verify",
     response_model=PlateVerificationResponse,
@@ -142,13 +150,15 @@ def verify_plate(
     normalized_plate = crud.normalize_plate(payload.plate)
     start_dt = end_dt = None
     if payload.date and payload.start_time and payload.end_time:
-        start_dt = datetime.combine(payload.date, payload.start_time)
-        end_dt = datetime.combine(payload.date, payload.end_time)
+        start_local = combine_business_datetime(payload.date, payload.start_time)
+        end_local = combine_business_datetime(payload.date, payload.end_time)
+        start_dt = start_local.astimezone(UTC)
+        end_dt = end_local.astimezone(UTC)
     conflict = crud.find_conflicting_plate_reservation(
         db, plate=normalized_plate, start=start_dt, end=end_dt
     )
     if conflict:
-        message = "해당 차량은 이미 예약되어 있습니다."
+        message = '해당 차량은 요청한 시간대에 이미 예약되어 있습니다.'
         conflict_public = to_reservation_public(conflict)
         return PlateVerificationResponse(
             valid=False,
@@ -157,10 +167,8 @@ def verify_plate(
             conflictingReservation=conflict_public,
         )
 
-    message = "예약이 가능합니다."
+    message = '예약이 가능합니다.'
     return PlateVerificationResponse(valid=True, message=message)
-
-
 @router.get(
     "/reservations/my",
     response_model=list[ReservationPublic],

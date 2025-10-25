@@ -10,6 +10,9 @@ class Settings(BaseModel):
     database_url: str = Field(
         default=os.getenv("DATABASE_URL", "sqlite:///./data/ev_charging.db")
     )
+    business_timezone: str = Field(
+        default=os.getenv("BUSINESS_TIMEZONE", "Asia/Seoul")
+    )
     admin_email: str = Field(default=os.getenv("ADMIN_EMAIL", "admin@demo.dev"))
     admin_password: str = Field(default=os.getenv("ADMIN_PASSWORD", "admin123"))
     admin_token: str = Field(default=os.getenv("ADMIN_TOKEN", "admin-demo-token"))
