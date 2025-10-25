@@ -26,6 +26,8 @@ env/
 *.db
 *.sqlite
 *.sqlite3
+data/ev_charging.db
+!data/.gitkeep
 
 # Logs
 *.log

@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 class Settings(BaseModel):
     database_url: str = Field(
-        default=os.getenv("DATABASE_URL", "sqlite:///./ev_charging.db")
+        default=os.getenv("DATABASE_URL", "sqlite:///./data/ev_charging.db")
     )
     admin_email: str = Field(default=os.getenv("ADMIN_EMAIL", "admin@demo.dev"))
     admin_password: str = Field(default=os.getenv("ADMIN_PASSWORD", "admin123"))
