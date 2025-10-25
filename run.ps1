@@ -48,21 +48,68 @@ if ($null -eq $npm) {
     Write-Warning "[run] npm 명령을 찾을 수 없어 프론트엔드를 시작하지 않습니다."
 }
 
+function Get-LocalIPv4Addresses {
+    try {
+        return Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
+            Where-Object {
+                $_.IPAddress -and
+                $_.IPAddress -notlike '127.*' -and
+                $_.IPAddress -notlike '169.254.*'
+            } |
+            Select-Object -ExpandProperty IPAddress -Unique
+    } catch {
+        Write-RunLog ("로컬 IPv4 주소를 확인하지 못했습니다: {0}" -f $_.Exception.Message)
+        return @()
+    }
+}
+
+function Build-DefaultOrigins {
+    Param(
+        [string[]]$LocalIps,
+        [string[]]$Ports = @("5173", "5174", "5175")
+    )
+
+    $origins = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($origin in @(
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175"
+        )) {
+        [void]$origins.Add($origin)
+    }
+
+    foreach ($ip in $LocalIps) {
+        foreach ($port in $Ports) {
+            [void]$origins.Add("http://$ip`:$port")
+        }
+    }
+
+    return $origins
+}
+
+$localIps = Get-LocalIPv4Addresses
+$defaultOrigins = Build-DefaultOrigins -LocalIps $localIps
+
 if ([string]::IsNullOrWhiteSpace($env:AUTO_SEED_SESSIONS)) {
     $env:AUTO_SEED_SESSIONS = "1"
 }
 if ([string]::IsNullOrWhiteSpace($env:CORS_ORIGINS)) {
-    $env:CORS_ORIGINS = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://192.168.45.9:5173,http://192.168.45.9:5174,http://172.17.16.1:5173,http://172.17.16.1:5174,http://172.27.64.1:5173,http://172.27.64.1:5174"
+    $env:CORS_ORIGINS = ($defaultOrigins | Sort-Object) -join ","
 }
 if ([string]::IsNullOrWhiteSpace($env:VITE_API_BASE)) {
-    $env:VITE_API_BASE = "http://localhost:8000"
+    $primaryIp = $localIps | Where-Object { $_ -and $_ -notlike '127.*' } | Select-Object -First 1
+    if ($primaryIp) {
+        $env:VITE_API_BASE = "http://$primaryIp`:8000"
+    } else {
+        $env:VITE_API_BASE = "http://localhost:8000"
+    }
 }
 
 Write-RunLog ("환경 변수 설정: AUTO_SEED_SESSIONS={0}, CORS_ORIGINS={1}, VITE_API_BASE={2}" -f `
     $env:AUTO_SEED_SESSIONS, $env:CORS_ORIGINS, $env:VITE_API_BASE)
 
 Write-RunLog "필요 시 아래 명령으로 CORS_ORIGINS를 덮어쓴 뒤 다시 실행하세요."
-Write-RunLog '$env:CORS_ORIGINS = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://192.168.45.9:5173,http://192.168.45.9:5174,http://172.17.16.1:5173,http://172.17.16.1:5174,http://172.27.64.1:5173,http://172.27.64.1:5174"'
+Write-RunLog ('$env:CORS_ORIGINS = "{0}"' -f $env:CORS_ORIGINS)
 Write-RunLog '.\run.ps1'
 
 $processes = New-Object System.Collections.Generic.List[System.Diagnostics.Process]

@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Camera,
@@ -37,9 +37,15 @@ type SessionReservations = {
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+const DEFAULT_API_BASE =
+  import.meta.env.VITE_API_BASE ??
+  (typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.hostname}:8000`
+    : "http://localhost:8000");
+const API_BASE = DEFAULT_API_BASE.replace(/\/$/, "");
 const START_HOUR = 9;
 const END_HOUR = 22;
+const DAY_END_MINUTES = END_HOUR * 60;
 
 const KR_PLATE_REGEX =
   /^(?:[가-힣]{2}\d{2}[가-힣]\d{4}|\d{2,3}[가-힣]\d{4}|[가-힣]{2}\d{2}\s?\d{4})$/;
@@ -178,6 +184,7 @@ export default function EVUserFrontV2() {
   const [plateValid, setPlateValid] = useState<boolean | null>(null);
   const [plateRegistered, setPlateRegistered] = useState<boolean | null>(null);
   const [plateHistory, setPlateHistory] = useState<Reservation[]>([]);
+  const [plateVerified, setPlateVerified] = useState(false);
 
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [date, setDate] = useState<string>(todayISO);
@@ -296,7 +303,7 @@ export default function EVUserFrontV2() {
     return () => {
       cancelled = true;
     };
-  }, [date, sessionId, startTime]);
+  }, [date, sessionId]);
 
   const canNextFromLogin = !!email && !!password;
   const canNextFromPlate = plateValid === true;
@@ -310,6 +317,7 @@ export default function EVUserFrontV2() {
       setToken(token);
       setPlateHistory([]);
       setPlateRegistered(null);
+      setPlateVerified(false);
       setStep(2);
     } catch (e: any) {
       setError(e?.message ?? "로그인 실패");
@@ -322,6 +330,7 @@ export default function EVUserFrontV2() {
     if (!token) return;
     if (!plateValid) {
       setError("번호판 형식을 확인하세요.");
+      setPlateVerified(false);
       return;
     }
     setLoading(true);
@@ -330,8 +339,10 @@ export default function EVUserFrontV2() {
       const history = await api.lookupPlate(plate.trim());
       setPlateHistory(history);
       setPlateRegistered(history.length > 0);
+      setPlateVerified(true);
       setStep(3);
     } catch (e: any) {
+      setPlateVerified(false);
       setError(e?.message ?? "번호판 확인 실패");
     } finally {
       setLoading(false);
@@ -346,6 +357,15 @@ export default function EVUserFrontV2() {
 
   const handleReserve = async () => {
     if (!token) return;
+    if (!plateVerified) {
+      setError("차량번호 검증을 먼저 완료하세요.");
+      setStep(2);
+      return;
+    }
+    if (toMinutes(startTime) + durationMin > DAY_END_MINUTES) {
+      setError("종료 가능 시간을 초과했습니다. 다른 시작 시간을 선택하세요.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -409,6 +429,14 @@ export default function EVUserFrontV2() {
     }
   };
 
+  const handlePlateChange = useCallback((value: string) => {
+    setPlate(value);
+    setPlateVerified(false);
+    setPlateRegistered(null);
+    setPlateHistory([]);
+    setError(null);
+  }, []);
+
   const openScanner = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -426,7 +454,7 @@ export default function EVUserFrontV2() {
     }
   };
 
-  const closeScanner = () => {
+  const closeScanner = useCallback(() => {
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.srcObject = null;
@@ -436,7 +464,7 @@ export default function EVUserFrontV2() {
       streamRef.current = null;
     }
     setScanOpen(false);
-  };
+  }, []);
 
   const snapAndRecognize = async () => {
     if (!videoRef.current) return;
@@ -450,7 +478,7 @@ export default function EVUserFrontV2() {
     ctx.drawImage(videoRef.current, 0, 0, vw, vh);
     await new Promise((res) => setTimeout(res, 600));
     const fake = ["12가3456", "123나4567", "68다1234", "서울12가3456"];
-    setPlate(fake[Math.floor(Math.random() * fake.length)]);
+    handlePlateChange(fake[Math.floor(Math.random() * fake.length)]);
     closeScanner();
   };
 
@@ -461,6 +489,41 @@ export default function EVUserFrontV2() {
       ),
     [myList]
   );
+
+  useEffect(() => {
+    if (toMinutes(startTime) + durationMin <= DAY_END_MINUTES) {
+      return;
+    }
+    const preferred = [...slots]
+      .reverse()
+      .find(
+        (s) =>
+          toMinutes(s) + durationMin <= DAY_END_MINUTES &&
+          !occupiedSet.has(s)
+      );
+    if (preferred && preferred !== startTime) {
+      setStartTime(preferred);
+      return;
+    }
+    const fallback = [...slots].find(
+      (s) => toMinutes(s) + durationMin <= DAY_END_MINUTES
+    );
+    if (fallback && fallback !== startTime) {
+      setStartTime(fallback);
+    }
+  }, [durationMin, occupiedSet, startTime]);
+
+  useEffect(() => {
+    if (scanOpen && step !== 2) {
+      closeScanner();
+    }
+  }, [scanOpen, step, closeScanner]);
+
+  useEffect(() => {
+    return () => {
+      closeScanner();
+    };
+  }, [closeScanner]);
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-gray-50 to-white flex items-center justify-center p-4">
@@ -520,7 +583,7 @@ export default function EVUserFrontV2() {
                     }`}
                     placeholder="예) 12가3456 / 123나4567"
                     value={plate}
-                    onChange={(e) => setPlate(e.target.value)}
+                    onChange={(e) => handlePlateChange(e.target.value)}
                   />
                   <button
                     onClick={openScanner}
@@ -662,14 +725,16 @@ export default function EVUserFrontV2() {
                   <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
                     {slots.map((s) => {
                       const busy = occupiedSet.has(s);
+                      const beyond = toMinutes(s) + durationMin > DAY_END_MINUTES;
+                      const disabled = busy || beyond;
                       const selected = startTime === s;
                       return (
                         <button
                           key={s}
-                          disabled={busy}
+                          disabled={disabled}
                           onClick={() => setStartTime(s)}
                           className={`rounded-lg px-2 py-2 text-sm border transition ${
-                            busy
+                            busy || beyond
                               ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
                               : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
                           } ${selected ? "ring-2 ring-indigo-500" : ""}`}
@@ -762,9 +827,7 @@ export default function EVUserFrontV2() {
                     <Button
                       onClick={() => {
                         setReservationId(null);
-                        setPlateRegistered(null);
-                        setPlateHistory([]);
-                        setPlate("");
+                        handlePlateChange("");
                         setEmail("");
                         setPassword("");
                         setToken(null);
@@ -837,7 +900,17 @@ export default function EVUserFrontV2() {
                   </div>
                 )}
                 <div className="flex items-center justify-between mt-4">
-                  <Button variant="ghost" onClick={() => setStep(3)}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      if (plateVerified) {
+                        setStep(3);
+                      } else {
+                        setError("차량번호 검증을 먼저 완료하세요.");
+                        setStep(2);
+                      }
+                    }}
+                  >
                     <ChevronLeft className="w-4 h-4 mr-1" />
                     예약으로 돌아가기
                   </Button>
