@@ -10,6 +10,19 @@ from sqlalchemy.orm import Session
 from .models import ChargingSession, Reservation, ReservationStatus
 
 
+def _lock_session(session: Session, *, session_id: int) -> None:
+    """
+    Acquire a row-level lock for the target charging session so that concurrent
+    reservations on the same session serialize properly.
+    """
+    stmt = (
+        select(ChargingSession.id)
+        .where(ChargingSession.id == session_id)
+        .with_for_update()
+    )
+    session.scalars(stmt).first()
+
+
 def normalize_plate(plate: str) -> str:
     return "".join(plate.split()).upper()
 
@@ -69,6 +82,9 @@ def create_reservation(
     end_time: datetime,
     contact_email: str | None = None,
 ) -> Reservation:
+    # Prevent concurrent reservation creation on the same session.
+    _lock_session(session, session_id=session_id)
+
     normalized_plate = normalize_plate(plate)
     ensure_no_overlap(session, session_id=session_id, start=start_time, end=end_time)
     ensure_no_conflict_for_plate(session, plate=normalized_plate, start=start_time, end=end_time)
@@ -98,13 +114,17 @@ def ensure_no_overlap(
     start: datetime,
     end: datetime,
 ) -> None:
-    overlap_stmt = select(Reservation).where(
-        and_(
-            Reservation.session_id == session_id,
-            Reservation.status != ReservationStatus.CANCELLED,
-            Reservation.start_time < end,
-            Reservation.end_time > start,
+    overlap_stmt = (
+        select(Reservation)
+        .where(
+            and_(
+                Reservation.session_id == session_id,
+                Reservation.status != ReservationStatus.CANCELLED,
+                Reservation.start_time < end,
+                Reservation.end_time > start,
+            )
         )
+        .with_for_update()
     )
     conflict = session.scalars(overlap_stmt).first()
     if conflict:
@@ -118,13 +138,17 @@ def ensure_no_conflict_for_plate(
     start: datetime,
     end: datetime,
 ) -> None:
-    stmt = select(Reservation).where(
-        and_(
-            Reservation.plate_normalized == plate,
-            Reservation.status != ReservationStatus.CANCELLED,
-            Reservation.start_time < end,
-            Reservation.end_time > start,
+    stmt = (
+        select(Reservation)
+        .where(
+            and_(
+                Reservation.plate_normalized == plate,
+                Reservation.status != ReservationStatus.CANCELLED,
+                Reservation.start_time < end,
+                Reservation.end_time > start,
+            )
         )
+        .with_for_update()
     )
     conflict = session.scalars(stmt).first()
     if conflict:

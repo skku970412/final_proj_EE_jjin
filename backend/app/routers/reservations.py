@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -19,6 +19,10 @@ from ..schemas import (
 )
 
 router = APIRouter(prefix="/api", tags=["reservations"])
+
+BUSINESS_OPEN = time(9, 0)
+BUSINESS_CLOSE = time(22, 0)
+SLOT_MINUTES = 30
 
 
 def to_reservation_public(reservation: Reservation) -> ReservationPublic:
@@ -94,6 +98,23 @@ def create_reservation(
     end_dt = datetime.combine(payload.date, payload.end_time)
     if end_dt <= start_dt:
         raise HTTPException(status_code=400, detail="종료 시간이 시작 시간보다 빠릅니다.")
+    if start_dt.date() != end_dt.date():
+        raise HTTPException(status_code=400, detail="예약은 동일한 날짜 안에서만 가능합니다.")
+
+    def _is_valid_slot(dt: datetime) -> bool:
+        return dt.minute in (0, 30) and dt.second == 0 and dt.microsecond == 0
+
+    if not _is_valid_slot(start_dt) or not _is_valid_slot(end_dt):
+        raise HTTPException(status_code=400, detail="예약은 30분 단위로만 가능합니다.")
+
+    if start_dt.time() < BUSINESS_OPEN or start_dt.time() >= BUSINESS_CLOSE:
+        raise HTTPException(status_code=400, detail="예약 시작 시간은 운영 시간(09:00~22:00) 내에서만 가능합니다.")
+    if end_dt.time() > BUSINESS_CLOSE:
+        raise HTTPException(status_code=400, detail="예약 종료 시간이 운영 종료(22:00) 이후입니다.")
+
+    duration_minutes = int((end_dt - start_dt).total_seconds() / 60)
+    if duration_minutes % SLOT_MINUTES != 0:
+        raise HTTPException(status_code=400, detail="예약은 30분 단위 길이로만 가능합니다.")
     try:
         reservation = crud.create_reservation(
             db,
