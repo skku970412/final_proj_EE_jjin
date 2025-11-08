@@ -32,6 +32,14 @@ def create_app() -> FastAPI:
     app.include_router(routers.reservations.router)
     app.include_router(routers.admin.router)
     app.include_router(routers.user.router)
+    # Plate recognition proxy
+    try:
+        from .routers import plates as plates_router  # type: ignore
+
+        app.include_router(plates_router.router)
+    except Exception:  # pragma: no cover
+        # In case of optional import issues – fail softly during startup
+        pass
 
     @app.on_event("startup")
     def _startup() -> None:

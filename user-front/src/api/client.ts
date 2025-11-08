@@ -28,7 +28,7 @@ async function extractError(res: Response): Promise<string> {
     // ignore JSON parse errors
   }
   const text = await res.text();
-  return text || `요청이 실패했습니다. (status ${res.status})`;
+  return text || `Request failed (status ${res.status}).`;
 }
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
@@ -89,4 +89,55 @@ export async function deleteReservation(id: string, email: string): Promise<void
     { method: "DELETE" }
   );
   if (!res.ok) throw new Error(await extractError(res));
+}
+
+export async function recognizePlate(image: Blob): Promise<{ plate: string; [k: string]: any }> {
+  const makeForm = () => {
+    const form = new FormData();
+    form.append("image", image, "capture.jpg");
+    return form;
+  };
+
+  const endpoints = [
+    {
+      url: `${API_BASE}/api/license-plates`,
+      fallbackStatuses: new Set([404, 405]),
+    },
+    {
+      url: `${API_BASE}/api/plates/recognize`,
+      fallbackStatuses: new Set<number>(),
+    },
+  ] as const;
+
+  let lastError: Error | null = null;
+
+  for (const { url, fallbackStatuses } of endpoints) {
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        body: makeForm(),
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        lastError = error;
+        continue;
+      }
+      throw error;
+    }
+
+    if (response.ok) {
+      return (await response.json()) as { plate: string; [k: string]: any };
+    }
+
+    const message = await extractError(response);
+    if (fallbackStatuses.has(response.status)) {
+      lastError = new Error(message);
+      continue;
+    }
+
+    throw new Error(message);
+  }
+
+  throw lastError ?? new Error("Plate recognition request failed.");
 }

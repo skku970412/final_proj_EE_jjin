@@ -27,6 +27,14 @@ class Settings(BaseModel):
             if origin.strip()
         ]
     )
+    # License Plate service endpoint (full URL)
+    # e.g. direct: http://<school-ip>:8001/v1/recognize
+    #      proxy : http://<proxy-host>:8000/api/license-plates
+    plate_service_endpoint: str = Field(
+        default=os.getenv(
+            "PLATE_SERVICE_URL", "http://localhost:8001/v1/recognize"
+        )
+    )
 
 
 @lru_cache(1)

@@ -104,6 +104,9 @@ if ([string]::IsNullOrWhiteSpace($env:VITE_API_BASE)) {
         $env:VITE_API_BASE = "http://localhost:8000"
     }
 }
+if ([string]::IsNullOrWhiteSpace($env:PLATE_SERVICE_URL)) {
+    $env:PLATE_SERVICE_URL = "http://localhost:8001/v1/recognize"
+}
 
 Write-RunLog ("환경 변수 설정: AUTO_SEED_SESSIONS={0}, CORS_ORIGINS={1}, VITE_API_BASE={2}" -f `
     $env:AUTO_SEED_SESSIONS, $env:CORS_ORIGINS, $env:VITE_API_BASE)

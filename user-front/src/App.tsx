@@ -31,6 +31,7 @@ import {
   lookupPlate,
   myReservations,
   verifySlot,
+  recognizePlate,
 } from "./api/client";
 import type { Reservation, SessionReservations } from "./api/types";
 
@@ -281,17 +282,30 @@ export default function App() {
 
   const snapAndRecognize = useCallback(async () => {
     if (!videoRef.current) return;
-    const canvas = document.createElement("canvas");
-    const vw = videoRef.current.videoWidth;
-    const vh = videoRef.current.videoHeight;
-    canvas.width = vw;
-    canvas.height = vh;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(videoRef.current, 0, 0, vw, vh);
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    handlePlateChange(FAKE_PLATES[Math.floor(Math.random() * FAKE_PLATES.length)]);
-    closeScanner();
+    setLoading(true);
+    setError(null);
+    try {
+      const canvas = document.createElement("canvas");
+      const vw = videoRef.current.videoWidth;
+      const vh = videoRef.current.videoHeight;
+      canvas.width = vw;
+      canvas.height = vh;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("캡처를 초기화하지 못했습니다.");
+      ctx.drawImage(videoRef.current, 0, 0, vw, vh);
+      const blob: Blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("캡처 실패"))), "image/jpeg", 0.9);
+      });
+      const result = await recognizePlate(blob);
+      if (result?.plate) {
+        handlePlateChange(result.plate);
+      }
+      closeScanner();
+    } catch (err: any) {
+      setError(err?.message ?? "번호판 인식에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
   }, [closeScanner, handlePlateChange]);
 
   const handleLogin = async () => {
