@@ -1,36 +1,34 @@
-# EV 무선충전 예약 데모
+﻿# EV 臾댁꽑異⑹쟾 ?덉빟 ?곕え
 
-FastAPI 백엔드와 두 개의 React(Vite) 프런트엔드가 동작하는 무선충전 예약 시스템입니다.  
-`user-front`는 사용자용 예약 플로우를, `admin-front`는 관리자용 모니터링/제어 화면을 제공합니다.
+FastAPI 諛깆뿏?쒖? ??媛쒖쓽 React(Vite) ?꾨윴?몄뿏?쒓? ?숈옉?섎뒗 臾댁꽑異⑹쟾 ?덉빟 ?쒖뒪?쒖엯?덈떎.  
+`user-front`???ъ슜?먯슜 ?덉빟 ?뚮줈?곕?, `admin-front`??愿由ъ옄??紐⑤땲?곕쭅/?쒖뼱 ?붾㈃???쒓났?⑸땲??
 
-## 주요 기능
+## 二쇱슂 湲곕뒫
 
-- 예약 슬롯을 30분 단위로 관리하여 중복 예약을 방지
-- 전체 시간 계산을 UTC 기반으로 처리하고, 프런트에서는 비즈니스 타임존(기본 Asia/Seoul)으로 변환
-- 사용자/관리자 UI를 페이지·컴포넌트·API 모듈로 분리하여 유지보수가 용이
-- 사진/QR 기반 번호판 스캔(데모용 Mock) 및 예약 현황 시각화
-
-## 디렉터리 구조
+- ?덉빟 ?щ’??30遺??⑥쐞濡?愿由ы븯??以묐났 ?덉빟??諛⑹?
+- ?꾩껜 ?쒓컙 怨꾩궛??UTC 湲곕컲?쇰줈 泥섎━?섍퀬, ?꾨윴?몄뿉?쒕뒗 鍮꾩쫰?덉뒪 ??꾩〈(湲곕낯 Asia/Seoul)?쇰줈 蹂??- ?ъ슜??愿由ъ옄 UI瑜??섏씠吏쨌而댄룷?뚰듃쨌API 紐⑤뱢濡?遺꾨━?섏뿬 ?좎?蹂댁닔媛 ?⑹씠
+- ?ъ쭊/QR 湲곕컲 踰덊샇???ㅼ틪(?곕え??Mock) 諛??덉빟 ?꾪솴 ?쒓컖??
+## ?붾젆?곕━ 援ъ“
 
 ```
 .
-├── backend/          # FastAPI + SQLAlchemy + SQLite
-├── user-front/       # 사용자용 프런트엔드 (React + Vite)
-├── admin-front/      # 관리자용 프런트엔드 (React + Vite)
-├── run.(sh|ps1)      # 백엔드/프런트 dev 서버 동시 실행 스크립트
-└── setup.(sh|ps1)    # 의존성 설치 및 초기 환경 구성 스크립트
+?쒋?? backend/          # FastAPI + SQLAlchemy + SQLite
+?쒋?? user-front/       # ?ъ슜?먯슜 ?꾨윴?몄뿏??(React + Vite)
+?쒋?? admin-front/      # 愿由ъ옄???꾨윴?몄뿏??(React + Vite)
+?쒋?? run.(sh|ps1)      # 諛깆뿏???꾨윴??dev ?쒕쾭 ?숈떆 ?ㅽ뻾 ?ㅽ겕由쏀듃
+?붴?? setup.(sh|ps1)    # ?섏〈???ㅼ튂 諛?珥덇린 ?섍꼍 援ъ꽦 ?ㅽ겕由쏀듃
 ```
 
-## 사전 준비물
+## ?ъ쟾 以鍮꾨Ъ
 
-- Node.js 18 이상 (npm 포함)
-- Python 3.10 이상
-- PowerShell 또는 Bash (운영체제에 맞게 선택)
+- Node.js 18 ?댁긽 (npm ?ы븿)
+- Python 3.10 ?댁긽
+- PowerShell ?먮뒗 Bash (?댁쁺泥댁젣??留욊쾶 ?좏깮)
 
-## 설치
+## ?ㅼ튂
 
-### 전체 자동 설치
-루트 디렉터리에서 아래 명령 중 하나를 실행하면 가상환경 생성, 백엔드 패키지 설치, 두 프런트엔드의 `npm install`이 한 번에 진행됩니다.
+### ?꾩껜 ?먮룞 ?ㅼ튂
+猷⑦듃 ?붾젆?곕━?먯꽌 ?꾨옒 紐낅졊 以??섎굹瑜??ㅽ뻾?섎㈃ 媛?곹솚寃??앹꽦, 諛깆뿏???⑦궎吏 ?ㅼ튂, ???꾨윴?몄뿏?쒖쓽 `npm install`????踰덉뿉 吏꾪뻾?⑸땲??
 
 - macOS / Linux
   ```bash
@@ -41,25 +39,25 @@ FastAPI 백엔드와 두 개의 React(Vite) 프런트엔드가 동작하는 무�
   .\setup.ps1
   ```
 
-### 수동 설치 (선택 사항)
+### ?섎룞 ?ㅼ튂 (?좏깮 ?ы빆)
 
-1. Python 가상환경 구성
+1. Python 媛?곹솚寃?援ъ꽦
    ```bash
    python -m venv .venv
    # Windows: .venv\Scripts\activate
    source .venv/bin/activate
    pip install -r backend/requirements.txt
    ```
-2. 프런트엔드 의존성 설치
+2. ?꾨윴?몄뿏???섏〈???ㅼ튂
    ```bash
    cd user-front && npm install
    cd ../admin-front && npm install
    ```
 
-## 실행
+## ?ㅽ뻾
 
-### 통합 실행 스크립트
-FastAPI 백엔드(기본 8000번 포트)와 두 개의 Vite 개발 서버를 동시에 실행합니다.
+### ?듯빀 ?ㅽ뻾 ?ㅽ겕由쏀듃
+FastAPI 諛깆뿏??湲곕낯 8000踰??ы듃)? ??媛쒖쓽 Vite 媛쒕컻 ?쒕쾭瑜??숈떆???ㅽ뻾?⑸땲??
 
 - macOS / Linux
   ```bash
@@ -70,56 +68,66 @@ FastAPI 백엔드(기본 8000번 포트)와 두 개의 Vite 개발 서버를 동
   .\run.ps1
   ```
 
-> 이미 포트를 사용 중이면 Vite가 5173, 5174 등 인접 포트를 자동 선택합니다.  
-> 브라우저에서 `http://localhost:5173/`(사용자)와 `http://localhost:5174/`(관리자)로 접속하세요.
+> ?대? ?ы듃瑜??ъ슜 以묒씠硫?Vite媛 5173, 5174 ???몄젒 ?ы듃瑜??먮룞 ?좏깮?⑸땲??  
+> 釉뚮씪?곗??먯꽌 `http://localhost:5173/`(?ъ슜??? `http://localhost:5174/`(愿由ъ옄)濡??묒냽?섏꽭??
 
-### 개별 실행 (선택)
+### 媛쒕퀎 ?ㅽ뻾 (?좏깮)
 
-1. 백엔드
-   ```bash
+1. 諛깆뿏??   ```bash
    source .venv/bin/activate          # Windows: .venv\Scripts\activate
    uvicorn backend.app.main:create_app --factory --reload --host 0.0.0.0 --port 8000
    ```
-2. 사용자 프런트
-   ```bash
+2. ?ъ슜???꾨윴??   ```bash
    cd user-front
    npm run dev -- --host
    ```
-3. 관리자 프런트
-   ```bash
+3. 愿由ъ옄 ?꾨윴??   ```bash
    cd admin-front
    npm run dev -- --host --port 5174
    ```
 
-## 기본 정보
+## 湲곕낯 ?뺣낫
 
-- 백엔드 기본 URL: `http://localhost:8000`
-- SQLite DB 파일: `data/ev_charging.db` (최초 실행 시 자동 생성)
-- 관리자 기본 계정: `admin@demo.dev / admin123`
-- CORS, 타임존 등 런타임 설정은 `backend/app/config.py`에서 환경 변수로 관리합니다.
+- 諛깆뿏??湲곕낯 URL: `http://localhost:8000`
+- SQLite DB ?뚯씪: `data/ev_charging.db` (理쒖큹 ?ㅽ뻾 ???먮룞 ?앹꽦)
+- 愿由ъ옄 湲곕낯 怨꾩젙: `admin@demo.dev / admin123`
+- CORS, ??꾩〈 ???고????ㅼ젙? `backend/app/config.py`?먯꽌 ?섍꼍 蹂?섎줈 愿由ы빀?덈떎.
 
-## 모듈 구조 요약
+## 紐⑤뱢 援ъ“ ?붿빟
 
-### 사용자 프런트 (`user-front/src`)
+### ?ъ슜???꾨윴??(`user-front/src`)
 
-- `api/` : REST 호출 모듈 (`client.ts`, `types.ts`)
-- `components/` : UI 컴포넌트와 폼 요소
-- `pages/` : 로그인, 번호판 확인, 이용 시간 선택, 결과, 내 예약 페이지
-- `utils/` : 시간 계산(`time.ts`), 번호판 정규식(`validation.ts`)
+- `api/` : REST ?몄텧 紐⑤뱢 (`client.ts`, `types.ts`)
+- `components/` : UI 而댄룷?뚰듃? ???붿냼
+- `pages/` : 濡쒓렇?? 踰덊샇???뺤씤, ?댁슜 ?쒓컙 ?좏깮, 寃곌낵, ???덉빟 ?섏씠吏
+- `utils/` : ?쒓컙 怨꾩궛(`time.ts`), 踰덊샇???뺢퇋??`validation.ts`)
 
-### 관리자 프런트 (`admin-front/src`)
+### 愿由ъ옄 ?꾨윴??(`admin-front/src`)
 
-- `api/` : 관리자 API 클라이언트
-- `components/` : 공용 카드, 버튼, 토글, 메트릭 카드 등
-- `pages/` : 로그인 페이지와 대시보드(세션·예약 현황)
-- `utils/` : 시간/슬롯 계산 공통 함수
+- `api/` : 愿由ъ옄 API ?대씪?댁뼵??- `components/` : 怨듭슜 移대뱶, 踰꾪듉, ?좉?, 硫뷀듃由?移대뱶 ??- `pages/` : 濡쒓렇???섏씠吏? ??쒕낫???몄뀡쨌?덉빟 ?꾪솴)
+- `utils/` : ?쒓컙/?щ’ 怨꾩궛 怨듯넻 ?⑥닔
 
-## 기타 참고
+## 湲고? 李멸퀬
 
-- `npm run build`(각 프런트)로 타입 검사와 프로덕션 번들을 확인할 수 있습니다.
-- 백엔드와 프런트 모두 UTF-8 인코딩을 사용하며, 한글 UI가 깨지는 경우 IDE 저장 인코딩을 확인하세요.
-- 문제 발생 시 `uvicorn`, `npm run dev`를 개별로 실행해 로그를 확인하면 디버깅에 도움이 됩니다.
+- `npm run build`(媛??꾨윴??濡????寃?ъ? ?꾨줈?뺤뀡 踰덈뱾???뺤씤?????덉뒿?덈떎.
+- 諛깆뿏?쒖? ?꾨윴??紐⑤몢 UTF-8 ?몄퐫?⑹쓣 ?ъ슜?섎ŉ, ?쒓? UI媛 源⑥???寃쎌슦 IDE ????몄퐫?⑹쓣 ?뺤씤?섏꽭??
+- 臾몄젣 諛쒖깮 ??`uvicorn`, `npm run dev`瑜?媛쒕퀎濡??ㅽ뻾??濡쒓렇瑜??뺤씤?섎㈃ ?붾쾭源낆뿉 ?꾩????⑸땲??
 
 ---
 
-필요한 기능이나 문서가 추가되면 README를 업데이트해 주세요. PR 또는 이슈를 통해 제안도 환영합니다!
+?꾩슂??湲곕뒫?대굹 臾몄꽌媛 異붽??섎㈃ README瑜??낅뜲?댄듃??二쇱꽭?? PR ?먮뒗 ?댁뒋瑜??듯빐 ?쒖븞???섏쁺?⑸땲??
+## 카메라 캡처 워커
+
+Firebase 실시간 DB 신호(/signals/car_on_parkinglot)를 감지해 C270 HD 웹캠으로 차량 사진을 촬영하고 파일로 저장하는 스크립트가 camera-capture/main.py에 포함돼 있습니다.  
+루트 가상환경 .venv를 활성화한 뒤 아래처럼 실행하면 기존 FastAPI 백엔드와 같은 의존성 환경을 공유할 수 있습니다.
+
+``powershell
+.\.venv\Scripts\activate
+cd camera-capture
+python main.py --credentials <서비스계정.json> --database-url https://<project>.firebaseio.com
+``
+
+필요 패키지(irebase-admin, opencv-python, pygrabber, 
+equests)는 ackend/requirements.txt에 추가돼 있어 pip install -r backend/requirements.txt 한 번으로 설치됩니다.
+`run.ps1`과 동시에 워커를 띄우고 싶다면 환경 변수 `RUN_CAMERA_WORKER=1`과 워커 인자를 담은 `CAMERA_WORKER_ARGS`(예: `--credentials ... --database-url ... --recognition-url ...`)를 설정한 뒤 `.
+un.ps1`을 실행하면 됩니다. CLI 인자를 지정하지 않으면 워커는 시작되지 않습니다.

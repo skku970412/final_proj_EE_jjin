@@ -217,6 +217,32 @@ def find_conflicting_plate_reservation(
     return session.scalars(stmt).first()
 
 
+def find_active_reservation_by_plate(
+    session: Session,
+    *,
+    plate: str,
+    when: datetime,
+) -> Optional[Reservation]:
+    normalized_plate = normalize_plate(plate)
+    moment = ensure_utc(when)
+    if moment is None:
+        return None
+
+    stmt = (
+        select(Reservation)
+        .where(
+            and_(
+                Reservation.plate_normalized == normalized_plate,
+                Reservation.status != ReservationStatus.CANCELLED,
+                Reservation.start_time <= moment,
+                Reservation.end_time > moment,
+            )
+        )
+        .order_by(Reservation.start_time.asc())
+    )
+    return session.scalars(stmt).first()
+
+
 def delete_reservation(session: Session, reservation_id: str) -> bool:
     reservation = session.get(Reservation, reservation_id)
     if not reservation:

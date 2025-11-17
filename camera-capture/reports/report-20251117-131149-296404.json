@@ -1,0 +1,9 @@
+{
+  "timestamp": "2025-11-17T13:11:49.295341+00:00",
+  "image_path": "captured\\car_entry.jpg",
+  "recognition_url": "http://127.0.0.1:9/unavailable",
+  "success": false,
+  "plate": null,
+  "response": null,
+  "error": "HTTP error: HTTPConnectionPool(host='127.0.0.1', port=9): Max retries exceeded with url: /unavailable (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000022CFB345A90>: Failed to establish a new connection: [WinError 10061] 대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다'))"
+}

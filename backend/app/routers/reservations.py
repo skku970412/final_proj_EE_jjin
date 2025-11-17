@@ -9,6 +9,8 @@ from .. import crud
 from ..database import get_db
 from ..models import ChargingSession, Reservation, ReservationStatus
 from ..schemas import (
+    PlateMatchRequest,
+    PlateMatchResponse,
     PlateVerificationRequest,
     PlateVerificationResponse,
     ReservationCreate,
@@ -169,6 +171,28 @@ def verify_plate(
 
     message = '예약이 가능합니다.'
     return PlateVerificationResponse(valid=True, message=message)
+
+
+@router.post(
+    "/plates/match",
+    response_model=PlateMatchResponse,
+    summary="탐지된 차량 번호와 예약 매칭",
+)
+def match_detected_plate(
+    payload: PlateMatchRequest,
+    db: Session = Depends(get_db),
+) -> PlateMatchResponse:
+    reservation = crud.find_active_reservation_by_plate(
+        db, plate=payload.plate, when=payload.timestamp
+    )
+    if reservation:
+        return PlateMatchResponse(
+            plate=payload.plate,
+            match=True,
+            reservation=to_reservation_public(reservation),
+        )
+    return PlateMatchResponse(plate=payload.plate, match=False)
+
 @router.get(
     "/reservations/my",
     response_model=list[ReservationPublic],

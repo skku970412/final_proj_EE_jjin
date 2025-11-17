@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -128,6 +128,39 @@ class PlateVerificationResponse(BaseModel):
     conflict: bool = False
     message: str
     conflictingReservation: Optional[ReservationPublic] = None
+
+
+class PlateMatchRequest(BaseModel):
+    plate: str
+    timestamp: datetime
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def parse_timestamp(cls, value: Any) -> datetime:
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                return value.replace(tzinfo=timezone.utc)
+            return value
+        if isinstance(value, (int, float)):
+            divisor = 1000.0 if abs(value) > 1_000_000_000_000 else 1.0
+            return datetime.fromtimestamp(value / divisor, tz=timezone.utc)
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                raise ValueError("timestamp 값이 비어 있습니다.")
+            if stripped.isdigit():
+                return cls.parse_timestamp(int(stripped))
+            normalized = stripped[:-1] + "+00:00" if stripped.endswith("Z") else stripped
+            return datetime.fromisoformat(normalized)
+        raise ValueError("timestamp 형식을 해석할 수 없습니다.")
+
+
+class PlateMatchResponse(BaseModel):
+    plate: str
+    match: bool
+    reservation: Optional[ReservationPublic] = None
 
 
 class AdminLoginRequest(BaseModel):

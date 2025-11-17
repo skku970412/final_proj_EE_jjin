@@ -11,6 +11,19 @@ function Write-RunLog {
     Write-Host "[run] $Message"
 }
 
+function ConvertTo-ArgumentArray {
+    Param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return @()
+    }
+
+    $nullRef = $null
+    return [System.Management.Automation.PSParser]::Tokenize($Value, [ref]$nullRef) |
+        Where-Object { $_.Type -eq 'CommandArgument' } |
+        Select-Object -ExpandProperty Content
+}
+
 function Get-VenvPython {
     Param([string]$VenvPath)
 
@@ -116,6 +129,17 @@ Write-RunLog ('$env:CORS_ORIGINS = "{0}"' -f $env:CORS_ORIGINS)
 Write-RunLog '.\run.ps1'
 
 $processes = New-Object System.Collections.Generic.List[System.Diagnostics.Process]
+$cameraWorkerScript = Join-Path $Root 'camera-capture\main.py'
+
+function Test-EnvFlag {
+    Param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $false
+    }
+
+    return ($Value -notin @('0', 'false', 'False', 'off', 'OFF'))
+}
 
 function Start-ServiceProcess {
     Param(
@@ -149,6 +173,20 @@ try {
             }
 
             Start-ServiceProcess -Name $project -FilePath $npm.Path -Arguments @('run', 'dev', '--', '--host') -WorkingDirectory $projPath
+        }
+    }
+
+
+    if (Test-EnvFlag $env:RUN_CAMERA_WORKER) {
+        if ($backendPython -and (Test-Path $cameraWorkerScript)) {
+            $cameraArgs = ConvertTo-ArgumentArray -Value $env:CAMERA_WORKER_ARGS
+            if ($cameraArgs.Count -eq 0) {
+                Write-Warning "[run] RUN_CAMERA_WORKER=1 but CAMERA_WORKER_ARGS is empty. Example: `$env:CAMERA_WORKER_ARGS = \"--skip-firebase\""
+            } else {
+                Start-ServiceProcess -Name 'camera-capture' -FilePath $backendPython -Arguments (@($cameraWorkerScript) + $cameraArgs) -WorkingDirectory $Root
+            }
+        } else {
+            Write-Warning "[run] camera-capture/main.py not found or Python unavailable; camera worker not started."
         }
     }
 
